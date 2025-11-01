@@ -173,6 +173,8 @@ function App() {
         body: JSON.stringify({
           image: originalImage, // This is the base64 data URL from FileReader
           userPrompt: userPromptValue,
+          style: style, // Send style to backend
+          roomType: roomType, // Send roomType to backend
         }),
       });
 
@@ -181,29 +183,17 @@ function App() {
         throw new Error(errorData.error || errorData.details || `Server error: ${response.status}`);
       }
 
-      const prediction = await response.json();
+      const data = await response.json();
       
-      // Backend returns a prediction object (from Replicate predictions.create)
-      // We need to poll for the result if it's not complete yet
-      if (prediction.status === 'succeeded' && prediction.output) {
-        // Prediction completed immediately
-        const imageUrl = Array.isArray(prediction.output) 
-          ? prediction.output[0] 
-          : prediction.output;
-        setRedesignedImage(imageUrl);
-      } else if (prediction.status === 'starting' || prediction.status === 'processing') {
-        // Need to poll for result
-        await pollPredictionStatus(prediction.id, API_BASE_URL);
-      } else if (prediction.error) {
-        throw new Error(prediction.error || 'Prediction failed');
+      // Backend now uses replicate.run() which returns result directly (no polling needed)
+      if (data.success && data.imageUrl) {
+        setRedesignedImage(data.imageUrl);
+      } else if (data.imageUrl) {
+        setRedesignedImage(data.imageUrl);
+      } else if (data.output) {
+        setRedesignedImage(data.output);
       } else {
-        // Fallback: try to extract URL from any output field
-        const imageUrl = prediction.output || prediction.urls?.get || prediction.imageUrl;
-        if (imageUrl) {
-          setRedesignedImage(imageUrl);
-        } else {
-          throw new Error('No image URL returned from server');
-        }
+        throw new Error('No image URL returned from server');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process request');
